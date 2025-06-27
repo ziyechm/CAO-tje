@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CAO'tje - Jouw ABU CAO Expert</title>
+    <!-- Laad Tailwind CSS voor snelle en responsieve styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Aangepaste stijl voor Inter font, indien nodig, anders gebruikt Tailwind standaard */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5; /* Lichte grijze achtergrond */
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen bg-gray-100 p-4 sm:p-6">
+    <div class="chat-container w-full max-w-md bg-white rounded-xl shadow-lg flex flex-col h-[70vh] sm:h-[80vh] md:h-[650px]">
+        <!-- Chat header -->
+        <div class="chat-header bg-green-600 text-white p-4 rounded-t-xl text-center text-xl font-bold">
+            CAO'tje - Jouw CAO Expert
+        </div>
+
+        <!-- Chat box waar berichten verschijnen -->
+        <div id="chatBox" class="chat-box flex-grow p-4 overflow-y-auto space-y-3">
+            <!-- Initiële welkomstboodschap van de agent -->
+            <div class="message agent bg-gray-200 text-gray-800 p-3 rounded-xl max-w-[80%]">
+                Hoi collega! Ik ben CAO'tje, jouw expert op het gebied van de ABU CAO. Stel gerust je vraag!
+            </div>
+        </div>
+
+        <!-- Invoergedeelte voor de gebruiker -->
+        <div class="chat-input flex p-4 border-t border-gray-200 rounded-b-xl">
+            <input type="text" id="userInput" placeholder="Stel je vraag over de ABU CAO..."
+                   class="flex-grow p-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-green-500 mr-3">
+            <button id="sendButton"
+                    class="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-full transition duration-300 ease-in-out shadow-md">
+                Verzenden
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // BELANGRIJK: DEZE URL IS NU BIJGEWERKT MET JOUW N8N WEBHOOK TRIGGER NODE URL
+        const N8N_WEBHOOK_URL = 'https://5dde-2a02-a463-657c-0-2c73-9d62-e54b-22a6.ngrok-free.app/webhook-test/fb4f95c3-10d5-455e-8e02-43a8dbe8b778';
+
+        const chatBox = document.getElementById('chatBox');
+        const userInput = document.getElementById('userInput');
+        const sendButton = document.getElementById('sendButton');
+
+        // Functie om een bericht toe te voegen aan de chatbox
+        function appendMessage(message, sender) {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message', 'p-3', 'rounded-xl', 'max-w-[80%]');
+            if (sender === 'user') {
+                messageDiv.classList.add('bg-blue-100', 'text-blue-800', 'ml-auto');
+            } else { // sender === 'agent'
+                messageDiv.classList.add('bg-gray-200', 'text-gray-800');
+            }
+            messageDiv.textContent = message;
+            chatBox.appendChild(messageDiv);
+            chatBox.scrollTop = chatBox.scrollHeight; // Scroll naar het nieuwste bericht
+        }
+
+        // Functie om de vraag naar n8n te sturen en het antwoord te verwerken
+        async function sendMessage() {
+            const message = userInput.value.trim();
+            if (message === '') return; // Stuur niets als het invoerveld leeg is
+
+            appendMessage(message, 'user'); // Toon de gebruikersvraag direct
+            document.getElementById('userInput').value = ''; // Leeg het invoerveld
+            sendButton.disabled = true; // Schakel de knop uit tijdens het verzenden
+            userInput.disabled = true; // Schakel het invoerveld uit
+
+            try {
+                // Toon een 'CAO'tje typt...' indicator
+                const typingIndicator = document.createElement('div');
+                typingIndicator.classList.add('message', 'agent', 'bg-gray-200', 'p-3', 'rounded-xl', 'max-w-[80%]', 'animate-pulse');
+                typingIndicator.textContent = 'CAO\'tje typt...';
+                chatBox.appendChild(typingIndicator);
+                chatBox.scrollTop = chatBox.scrollHeight;
+
+                const response = await fetch(N8N_WEBHOOK_URL, {
+                    method: 'POST', // We sturen data, dus POST is gebruikelijk
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    // Stuur de gebruikersvraag in een JSON-object.
+                    // Zorg ervoor dat je n8n Webhook node dit veld ('user_question') verwacht.
+                    body: JSON.stringify({ user_question: message })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                // Verwijder de type-indicator voordat het antwoord wordt toegevoegd
+                chatBox.removeChild(typingIndicator);
+
+                // Zorg ervoor dat 'data.response' overeenkomt met hoe je de output in n8n noemt
+                // (bijv. in je 'Respond to Webhook' node)
+                const agentResponse = data.response || 'Geen antwoord ontvangen van de agent.';
+                appendMessage(agentResponse, 'agent');
+
+            } catch (error) {
+                console.error('Fout bij communicatie met CAO\'tje:', error);
+                // Verwijder de type-indicator bij fouten
+                const typingIndicator = document.querySelector('.message.agent.animate-pulse');
+                if (typingIndicator) {
+                    chatBox.removeChild(typingIndicator);
+                }
+                appendMessage('Oeps, CAO\'tje kan momenteel geen antwoord geven. Probeer het later opnieuw.', 'agent');
+            } finally {
+                sendButton.disabled = false; // Schakel de knop weer in
+                userInput.disabled = false; // Schakel het invoerveld weer in
+                userInput.focus(); // Focus terug naar het invoerveld
+            }
+        }
+
+        // Voeg event listeners toe
+        sendButton.addEventListener('click', sendMessage);
+        userInput.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>
