@@ -62,6 +62,18 @@
             chatBox.scrollTop = chatBox.scrollHeight; // Scroll naar het nieuwste bericht
         }
 
+        // --- NIEUWE CODE VOOR SESSION ID ---
+        let sessionId = localStorage.getItem('chatSessionId');
+        if (!sessionId) {
+            sessionId = crypto.randomUUID(); // Genereer een nieuwe unieke ID
+            localStorage.setItem('chatSessionId', sessionId); // Sla op voor toekomstige bezoeken
+            console.log('Nieuwe chat sessie ID gegenereerd:', sessionId);
+        } else {
+            console.log('Bestaande chat sessie ID geladen:', sessionId);
+        }
+        // --- EINDE NIEUWE CODE VOOR SESSION ID ---
+
+
         // Functie om de vraag naar n8n te sturen en het antwoord te verwerken
         async function sendMessage() {
             const message = userInput.value.trim();
@@ -85,9 +97,12 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    // Stuur de gebruikersvraag in een JSON-object.
-                    // Zorg ervoor dat je n8n Webhook node dit veld ('user_question') verwacht.
-                    body: JSON.stringify({ user_question: message })
+                    // --- WIJZIGING HIER: session_id toegevoegd aan de body ---
+                    body: JSON.stringify({ 
+                        user_question: message,
+                        session_id: sessionId // Voeg de sessie-ID toe
+                    })
+                    // --- EINDE WIJZIGING ---
                 });
 
                 if (!response.ok) {
